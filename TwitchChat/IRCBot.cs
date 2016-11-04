@@ -29,9 +29,8 @@ namespace TwitchChat
             try
             {
                 networkStream = irc.GetStream();
-                streamReader = new StreamReader(networkStream, Encoding.UTF8);
+                streamReader = new StreamReader(networkStream, Encoding.Default);
                 streamWriter = new StreamWriter(networkStream);
-
                 long nickNumber = LongRandom(10000000000000, 99999999999999, random);
                 streamWriter.WriteLine("NICK justinfan" + nickNumber); //We need a unique name for each thread, so why not get a random number between 10 Trillion and 100 Trillion? I'm a fan of risks and want the .00001% chance I hit an uncaught error here.
                 streamWriter.Flush();
@@ -41,14 +40,6 @@ namespace TwitchChat
                     streamWriter.WriteLine("JOIN #" + streamer); //The IRC command is #join <channel>, we have 25 to join here...and we will report that in the console.
                     thisThreadStreamers.Add(streamer);
                 }
-                /*
-                 * For now this is just diagnostic information while I try and track the thread carry-over issues.
-                 * I assume it has to do with the network stream giving too much data...but who knows...
-                 */
-                Console.WriteLine("Streamer List (Thread #" + threadNumber + "): ");
-                foreach (string s in thisThreadStreamers)
-                    Console.Write(s + " | ");
-                Console.WriteLine("");
                 streamWriter.Flush();
             }
             catch (Exception e)
@@ -59,7 +50,7 @@ namespace TwitchChat
 
         internal void handleData()
         {
-            Console.WriteLine("[" + DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss.fffffff") + "] Thread #" + threadNumber + " has been started");
+            Logging.WriteToConsole("Thread #" + threadNumber + " has been started.");
             //Byte[] bytes = new Byte[1024]; //TODO: Understand this more in the future - this could be the issue with the initial thread start leaking information
             //int i;
             //while ((i = networkStream.Read(bytes, 0, bytes.Length)) != 0) //TODO: See if this can be converted to another stream reader -- threading appears to cause overlap on initial start ???
@@ -92,8 +83,6 @@ namespace TwitchChat
                     }
                 }
             }
-            Console.WriteLine("[" + DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss.fffffff") + "] A thread has exited. Restarting Thread #" + threadNumber);
-            Operations.restartThread(threadNumber);
         }
 
         /*

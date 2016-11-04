@@ -49,6 +49,7 @@
   <ItemGroup>
     <Compile Include="IRCBot.cs" />
     <Compile Include="JSON.cs" />
+    <Compile Include="Logging.cs" />
     <Compile Include="Operations.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -57,6 +58,7 @@
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
       <DependentUpon>Settings.settings</DependentUpon>
     </Compile>
+    <Compile Include="ThreadMonitor.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

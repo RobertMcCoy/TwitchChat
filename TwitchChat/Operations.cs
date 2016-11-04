@@ -12,8 +12,8 @@ namespace TwitchChat
 {
     public class Operations
     {
-        private const int SCALE_DOWN_CONSTANT = 1;
-        private const int STREAMS_PER_THREAD = 40;
+        private const int SCALE_DOWN_CONSTANT = 100;
+        private const int STREAMS_PER_THREAD = 25;
         private static List<List<string>> channelsToJoin = new List<List<string>>();
         public static List<string> fullListOfChannels = new List<string>();
         public static List<Thread> ircBots = new List<Thread>();
@@ -35,23 +35,20 @@ namespace TwitchChat
                 {
                     if (streamWrapper != null)
                     {
-                        for (int numberParsed = 1; numberParsed < streamWrapper.streams.Count - 1; numberParsed++)
+                        for (int j = 0; j < streamWrapper.streams.Count; j++)
                         {
-                            Console.WriteLine("New channel added to list: " + streamWrapper.streams[numberParsed].channel.name);
-
-                            //TODO: Something wasn't working here, fix this tomorrow
-
                             if (currentThreadCounter >= totalThreadsRequired - 1)
                             {
                                 currentThreadCounter = 0;
-                                channelsToJoin[currentThreadCounter].Add(streamWrapper.streams[numberParsed].channel.name);
+                                channelsToJoin[currentThreadCounter].Add(streamWrapper.streams[j].channel.name);
                             }
                             else
                             {
-                                channelsToJoin[currentThreadCounter].Add(streamWrapper.streams[numberParsed].channel.name);
+                                channelsToJoin[currentThreadCounter].Add(streamWrapper.streams[j].channel.name);
                                 currentThreadCounter++;
                             }
                         }
+                        Logging.WriteToConsole("A new set of " + streamWrapper.streams.Count + " has been parsed.");
                     }
                     else
                     {
@@ -61,25 +58,30 @@ namespace TwitchChat
                     streamWrapper = JsonConvert.DeserializeObject<RootObject>(jsonResponse);
                     fullListOfChannels = combinedLists(channelsToJoin, fullListOfChannels, (i - 100) / 100);
                 }
-                int counter = 1;
+                string combinedChannelsString = "All Channel Names: ";
+                foreach (string channel in fullListOfChannels)
+                {
+                    combinedChannelsString += channel + ", ";
+                }
+                Logging.WriteToConsole(combinedChannelsString);
+                int counter = 0;
                 foreach (List<string> stringList in channelsToJoin)
                 {
                     IRCBot newBot = new IRCBot(stringList, counter++);
                     ircBots.Add(new Thread(() => newBot.handleData()));
+                    ircBots[counter - 1].Name = (counter - 1).ToString(); //This name is used for reference in the ThreadMonitor
                 }
-                return startBots();
+                int botsStarted = startBots();
+                ThreadMonitor threadMonitor = new ThreadMonitor(ircBots);
+                Thread threadForThreadMonitor = new Thread(() => threadMonitor.monitorThreads());
+                threadForThreadMonitor.Start();
+                return botsStarted;
             }
             else
             {
                 Console.WriteLine("Twitch response was blank for get streamer list.");
                 return -1;
             }
-        }
-
-        public static void restartThread(int threadIndex)
-        {
-            ircBots[threadIndex - 1].Abort();
-            ircBots[threadIndex - 1].Start();
         }
 
         public static int startBots()
@@ -92,7 +94,6 @@ namespace TwitchChat
                     try
                     {
                         thread.Start();
-                        Console.WriteLine("A new thread has been started -- Total: " + botsStarted);
                         botsStarted++;
                     }
                     catch (Exception exc)
