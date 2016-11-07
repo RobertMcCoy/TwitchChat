@@ -13,7 +13,7 @@ namespace TwitchChat
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Bots created: " + Operations.createBots());
+            Operations.createBots();
             Console.OutputEncoding = Encoding.Unicode;
             Console.ReadKey();
         }

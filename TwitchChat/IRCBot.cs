@@ -18,10 +18,7 @@ namespace TwitchChat
         private int threadNumber;
         List<string> thisThreadStreamers = new List<string>();
         //Thank god for channels renaming their custom bots...in time I need to identify a better way of doing this, because this is going to slow down performance slightly...
-        private string[] channelBots = { "gspbot", "tuckusruckusbot", "missychatbot", "6seven8_bot", "spindigbot", "jenningsbot", "lasskeepobot", "jogabot", "og_walkbot",
-                                         "cinbot", "clickerheroesbot", "xnoobbot", "drunkafbot", "zmcbeastbot", "lucidfoxxbot", "moobot", "hnlbot", "scamazbot", "revobot",
-                                         "vaneiobot", "korgek_bot", "gorobot", "toez_bot", "flpbot", "priestbot", "xanbot", "drangrybot", "phantombot", "coebot", "wizebot", "branebot",
-                                         "vivbot", "revlobot", "ankhbot", "deepbot", "nightbot", "ohbot", "koalabot", "quorrabot" };
+        
 
         public IRCBot(List<string> channels, int threadNumber)
         {
@@ -63,18 +60,7 @@ namespace TwitchChat
                 {
                     if (data.Trim() != string.Empty && splitData.Length > 1 && splitData[1].Equals("PRIVMSG")) //PRIVMSG = A new message in the channel TODO: Figure out why the splitData.Length > 1 check was needed here and why it wasn't working about when we needed to check > 0 ?
                     {
-                        try
-                        {
-                            string commentSubmitter = splitData[0].Substring(1, splitData[0].IndexOf('!') - 1); //Each line from the stream begins ':username' and ends with '!username', so we just get the username before the checkmark without the :
-                            string submissionTime = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss.fffffff"); //Super specific timing, just going to be useful in the future for analysis [MPS, MPMS, etc.]
-                            string message = data.Substring(data.IndexOf(':', data.IndexOf(':') + 1) + 1); //Each message starts with the 1st ':' in the read line, we need to get the substring between that and the 2nd :
-                            if (!channelBots.Contains<string>(commentSubmitter))
-                                Console.WriteLine("[" + submissionTime + "] - " + commentSubmitter + " - " + splitData[2].Replace("#", "") + " - " + message.Trim()); //[<TIME>] - <USER> - <CHANNEL> - <MESSAGE> -- TODO: Convert this into a database model and get statistics for channels and users in a thread w/ a queue
-                        }
-                        catch
-                        {
-                            continue;
-                        }
+                        Operations.receivedMessages.Enqueue(data);
                     }
                     else if (splitData[0].Equals("PING")) //Every ~5 minutes IRC sends a ping which must be responded with a pong
                     {

@@ -7,6 +7,7 @@ using System.Threading;
 using System.IO;
 using System.Net;
 using Newtonsoft.Json;
+using System.Data.SqlClient;
 
 namespace TwitchChat
 {
@@ -17,6 +18,12 @@ namespace TwitchChat
         private static List<List<string>> channelsToJoin = new List<List<string>>();
         public static List<string> fullListOfChannels = new List<string>();
         public static List<Thread> ircBots = new List<Thread>();
+        public static Queue<string> receivedMessages = new Queue<string>();
+
+        private static string[] channelBots = { "gspbot", "tuckusruckusbot", "missychatbot", "6seven8_bot", "spindigbot", "jenningsbot", "lasskeepobot", "jogabot", "og_walkbot",
+                                         "cinbot", "clickerheroesbot", "xnoobbot", "drunkafbot", "zmcbeastbot", "lucidfoxxbot", "moobot", "hnlbot", "scamazbot", "revobot",
+                                         "vaneiobot", "korgek_bot", "gorobot", "toez_bot", "flpbot", "priestbot", "xanbot", "drangrybot", "phantombot", "coebot", "wizebot", "branebot",
+                                         "vivbot", "revlobot", "ankhbot", "deepbot", "nightbot", "ohbot", "koalabot", "quorrabot" };
 
         public static int createBots()
         {
@@ -64,6 +71,7 @@ namespace TwitchChat
                     combinedChannelsString += channel + ", ";
                 }
                 Logging.WriteToConsole(combinedChannelsString);
+                handleChannelName();
                 int counter = 0;
                 foreach (List<string> stringList in channelsToJoin)
                 {
@@ -75,6 +83,8 @@ namespace TwitchChat
                 ThreadMonitor threadMonitor = new ThreadMonitor(ircBots);
                 Thread threadForThreadMonitor = new Thread(() => threadMonitor.monitorThreads());
                 threadForThreadMonitor.Start();
+                Thread threadForHandleMessages = new Thread(() => handleMessages());
+                threadForHandleMessages.Start();
                 return botsStarted;
             }
             else
@@ -152,6 +162,138 @@ namespace TwitchChat
             catch (WebException exc)
             {
                 return string.Empty;
+            }
+        }
+
+        public static void handleChannelName()
+        {
+            foreach (string str in fullListOfChannels)
+            {
+                using (SqlConnection connection = new SqlConnection(Constants.connectionString))
+                {
+                    connection.Open();
+                    int streamerId = -1;
+                    using (SqlCommand command = new SqlCommand("SELECT TOP 1 * FROM Channel where ChannelName='" + str + "'", connection))
+                    {
+                        using (SqlDataReader reader = command.ExecuteReader())
+                        {
+                            while (reader.Read())
+                            {
+                                streamerId = reader.GetInt32(0);
+                            }
+                        }
+                    }
+                    if (streamerId == -1)
+                    {
+                        using (SqlCommand command = new SqlCommand("INSERT INTO Channel(ChannelName) VALUES('" + str + "')", connection))
+                        {
+                            Logging.WriteToConsole("A new channel has been created within the database: " + str);
+                            command.ExecuteNonQuery();
+                        }
+                    }
+                    connection.Close();
+                }
+            }
+        }
+
+        public static void handleMessages()
+        {
+            while (true)
+            {
+                if (receivedMessages.Count > 0 && receivedMessages.Peek() != null)
+                {
+                    string data = receivedMessages.Dequeue();
+                    if (data != null)
+                    {
+                        string[] splitData = data.Split(' ');
+                        try
+                        {
+                            string commentSubmitter = splitData[0].Substring(1, splitData[0].IndexOf('!') - 1); //Each line from the stream begins ':username' and ends with '!username', so we just get the username before the checkmark without the :
+                            string submissionTime = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss.fffffff"); //Super specific timing, just going to be useful in the future for analysis [MPS, MPMS, etc.]
+                            string message = data.Substring(data.IndexOf(':', data.IndexOf(':') + 1) + 1); //Each message starts with the 1st ':' in the read line, we need to get the substring between that and the 2nd :
+                            if (!channelBots.Contains<string>(commentSubmitter))
+                            {
+                                using (SqlConnection connection = new SqlConnection(Constants.connectionString))
+                                {
+                                    connection.Open();
+                                    int submitterId = -1, streamerId = -1;
+                                    using (SqlCommand command = new SqlCommand("SELECT TOP 1 * FROM Chatter where ChatterName='" + commentSubmitter + "'", connection))
+                                    {
+                                        using (SqlDataReader reader = command.ExecuteReader())
+                                        {
+                                            while (reader.Read())
+                                            {
+                                                submitterId = reader.GetInt32(0);
+                                            }
+                                        }
+                                    }
+                                    using (SqlCommand command = new SqlCommand("SELECT TOP 1 * FROM Channel where ChannelName='" + splitData[2].Replace("#", "") + "'", connection))
+                                    {
+                                        using (SqlDataReader reader = command.ExecuteReader())
+                                        {
+                                            while (reader.Read())
+                                            {
+                                                streamerId = reader.GetInt32(0);
+                                            }
+                                        }
+                                    }
+                                    if (submitterId == -1)
+                                    {
+                                        using (SqlCommand command = new SqlCommand("INSERT INTO Chatter(ChatterName) VALUES('" + commentSubmitter + "')", connection))
+                                        {
+                                            command.ExecuteNonQuery();
+                                        }
+                                    }
+                                    if (streamerId == -1)
+                                    {
+                                        using (SqlCommand command = new SqlCommand("INSERT INTO Channel(ChannelName) VALUES('" + splitData[2].Replace("#", "") + "')", connection))
+                                        {
+                                            command.ExecuteNonQuery();
+                                        }
+                                    }
+
+                                    using (SqlCommand command = new SqlCommand("SELECT TOP 1 * FROM Chatter where ChatterName='" + commentSubmitter + "'", connection))
+                                    {
+                                        using (SqlDataReader reader = command.ExecuteReader())
+                                        {
+                                            while (reader.Read())
+                                            {
+                                                submitterId = reader.GetInt32(0);
+                                            }
+                                        }
+                                    }
+                                    using (SqlCommand command = new SqlCommand("SELECT TOP 1 * FROM Channel where ChannelName='" + splitData[2].Replace("#", "") + "'", connection))
+                                    {
+                                        using (SqlDataReader reader = command.ExecuteReader())
+                                        {
+                                            while (reader.Read())
+                                            {
+                                                streamerId = reader.GetInt32(0);
+                                            }
+                                        }
+                                    }
+
+                                    if (streamerId != -1 && submitterId != -1)
+                                    {
+                                        using (SqlCommand command = new SqlCommand("INSERT INTO Message(ChatterId, ChannelId, SubmissionTime, MessageContent) VALUES('" + submitterId + "', '" + streamerId + "', '" + submissionTime + "', '" + message + "')", connection))
+                                        {
+                                            command.ExecuteNonQuery();
+                                        }
+                                    }
+                                    else
+                                    {
+                                        Logging.WriteToConsole("Something's not right with the database");
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception exc)
+                        {
+                            Logging.WriteToConsole("Database Error: " + exc.Message);
+                            continue;
+                        }
+                    }
+                }
             }
         }
     }

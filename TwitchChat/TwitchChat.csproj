@@ -47,6 +47,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Constants.cs" />
     <Compile Include="IRCBot.cs" />
     <Compile Include="JSON.cs" />
     <Compile Include="Logging.cs" />
