@@ -20,6 +20,7 @@ namespace TwitchChat
             Logging.WriteToConsole("Beginning thread monitoring. Total threads to monitor: " + monitoredThreads.Count);
             while (true)
             {
+                Thread.Sleep(5000);
                 List<string> activeThreads = new List<string>();
                 foreach (Thread thread in monitoredThreads)
                 {
@@ -42,7 +43,6 @@ namespace TwitchChat
                 }
                 activeThreadsStr += " | Queue Length: " + Operations.receivedMessages.Count;
                 Logging.WriteToConsole(activeThreadsStr);
-                Thread.Sleep(5000);
             }
         }
     }

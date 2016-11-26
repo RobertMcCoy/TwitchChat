@@ -80,11 +80,14 @@ namespace TwitchChat
                     ircBots[counter - 1].Name = (counter - 1).ToString(); //This name is used for reference in the ThreadMonitor
                 }
                 int botsStarted = startBots();
-                ThreadMonitor threadMonitor = new ThreadMonitor(ircBots);
-                Thread threadForThreadMonitor = new Thread(() => threadMonitor.monitorThreads());
-                threadForThreadMonitor.Start();
+                ThreadMonitor ircThreadMonitor = new ThreadMonitor(ircBots);
+                Thread threadForIRCThreadMonitor = new Thread(() => ircThreadMonitor.monitorThreads());
+                threadForIRCThreadMonitor.Start();
                 Thread threadForHandleMessages = new Thread(() => handleMessages());
                 threadForHandleMessages.Start();
+                ThreadMonitor handleMessageThreadMonitor = new ThreadMonitor(new List<Thread> { threadForHandleMessages });
+                Thread threadForHandleMessageMonitor = new Thread(() => handleMessageThreadMonitor.monitorThreads());
+                threadForHandleMessageMonitor.Start();
                 return botsStarted;
             }
             else
@@ -211,6 +214,10 @@ namespace TwitchChat
                             string commentSubmitter = splitData[0].Substring(1, splitData[0].IndexOf('!') - 1); //Each line from the stream begins ':username' and ends with '!username', so we just get the username before the checkmark without the :
                             string submissionTime = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss.fffffff"); //Super specific timing, just going to be useful in the future for analysis [MPS, MPMS, etc.]
                             string message = data.Substring(data.IndexOf(':', data.IndexOf(':') + 1) + 1); //Each message starts with the 1st ':' in the read line, we need to get the substring between that and the 2nd :
+                            if (message.Contains("'"))
+                            {
+                                message = message.Replace("'", "''");
+                            }
                             if (!channelBots.Contains<string>(commentSubmitter))
                             {
                                 using (SqlConnection connection = new SqlConnection(Constants.connectionString))
@@ -290,7 +297,6 @@ namespace TwitchChat
                         catch (Exception exc)
                         {
                             Logging.WriteToConsole("Database Error: " + exc.Message);
-                            continue;
                         }
                     }
                 }
