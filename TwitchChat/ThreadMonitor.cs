@@ -31,18 +31,29 @@ namespace TwitchChat
                     }
                     else
                     {
-                        Logging.WriteToConsole("Thread found that was not alive. Thread #" + thread.Name);
-                        thread.Abort();
+                        Logging.WriteToConsole("Thread found that was not alive. Thread '" + thread.Name + "'");
                         thread.Start();
                     }
                 }
-                string activeThreadsStr = "Active threads: ";
-                foreach (string s in activeThreads)
+                Thread statisticsThread = new Thread(() => reportOnStatistics());
+                statisticsThread.Start();
+            }
+        }
+
+        private void reportOnStatistics()
+        {
+            foreach (IRCBot ircBot in Operations.ircBots)
+            {
+                Logging.WriteToConsole("REPORT: \tTHREAD #" + ircBot.getThreadNbr() + " has processed " + ircBot.getProcessedMessages() + " messages. \tQueue Length: " + ircBot.getQueueLength());
+                if (ircBot.getProcessedMessages() == 0)
                 {
-                    activeThreadsStr += s + ", ";
+                    StringBuilder stringBuilder = new StringBuilder();
+                    foreach (string str in ircBot.getStreamerList())
+                    {
+                        stringBuilder.Append(str);
+                    }
+                    Logging.WriteToConsole("REPORT: \tTHREAD #" + ircBot.getThreadNbr() + " has reported 0 messages processed. Streamers in that thread: " + stringBuilder.ToString());
                 }
-                activeThreadsStr += " | Queue Length: " + Operations.receivedMessages.Count;
-                Logging.WriteToConsole(activeThreadsStr);
             }
         }
     }

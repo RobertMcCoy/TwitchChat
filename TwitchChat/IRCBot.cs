@@ -5,10 +5,11 @@ using System.Text;
 using System.Threading.Tasks;
 using System.IO;
 using System.Net.Sockets;
+using System.Data.SqlClient;
 
 namespace TwitchChat
 {
-    class IRCBot
+    public class IRCBot
     {
         private TcpClient irc = new TcpClient("irc.chat.twitch.tv", 6667);
         private NetworkStream networkStream;
@@ -16,7 +17,9 @@ namespace TwitchChat
         private StreamWriter streamWriter;
         private Random random = new Random();
         private int threadNumber;
-        List<string> thisThreadStreamers = new List<string>();
+        private List<string> thisThreadStreamers = new List<string>();
+        private Queue<string> receivedMessages = new Queue<string>();
+        private int processedMessages = 0;
         //Thank god for channels renaming their custom bots...in time I need to identify a better way of doing this, because this is going to slow down performance slightly...
         
 
@@ -47,20 +50,16 @@ namespace TwitchChat
 
         internal void handleData()
         {
-            Logging.WriteToConsole("Thread #" + threadNumber + " has been started.");
-            //Byte[] bytes = new Byte[1024]; //TODO: Understand this more in the future - this could be the issue with the initial thread start leaking information
-            //int i;
-            //while ((i = networkStream.Read(bytes, 0, bytes.Length)) != 0) //TODO: See if this can be converted to another stream reader -- threading appears to cause overlap on initial start ???
+            Logging.WriteToConsole("IRC Thread #" + threadNumber + " has been started.");
             string data;
             while ((data = streamReader.ReadLine()) != null)
             {
-                //string data = Encoding.ASCII.GetString(bytes, 0, i); //Convert the network stream line to an actual string of ASCII characters [Might want to do unicode for foriegn characters?]
                 string[] splitData = data.Split(' '); //Will need this to determine the message type we have received
                 if (data != string.Empty && splitData.Length > 0)
                 {
                     if (data.Trim() != string.Empty && splitData.Length > 1 && splitData[1].Equals("PRIVMSG")) //PRIVMSG = A new message in the channel TODO: Figure out why the splitData.Length > 1 check was needed here and why it wasn't working about when we needed to check > 0 ?
                     {
-                        Operations.receivedMessages.Enqueue(data);
+                        receivedMessages.Enqueue(data);
                     }
                     else if (splitData[0].Equals("PING")) //Every ~5 minutes IRC sends a ping which must be responded with a pong
                     {
@@ -69,6 +68,132 @@ namespace TwitchChat
                     }
                 }
             }
+        }
+
+        internal void handleMessages()
+        {
+            Logging.WriteToConsole("Message Handler #" + threadNumber + " has been started.");
+            while (true)
+            {
+                if (receivedMessages.Count > 0 && receivedMessages.Peek() != null)
+                {
+                    string data = receivedMessages.Dequeue();
+                    if (data != null)
+                    {
+                        string[] splitData = data.Split(' ');
+                        try
+                        {
+                            string commentSubmitter = splitData[0].Substring(1, splitData[0].IndexOf('!') - 1); //Each line from the stream begins ':username' and ends with '!username', so we just get the username before the checkmark without the :
+                            string submissionTime = DateTime.Now.ToString("yyyy/MM/dd HH:mm:ss.fffffff"); //Super specific timing, just going to be useful in the future for analysis [MPS, MPMS, etc.]
+                            string message = data.Substring(data.IndexOf(':', data.IndexOf(':') + 1) + 1); //Each message starts with the 1st ':' in the read line, we need to get the substring between that and the 2nd :
+                            if (message.Contains("'"))
+                            {
+                                message = message.Replace("'", "''");
+                            }
+                            if (!Operations.channelBots.Contains<string>(commentSubmitter))
+                            {
+                                using (SqlConnection connection = new SqlConnection(Constants.connectionString))
+                                {
+                                    connection.Open();
+                                    int submitterId = -1, streamerId = -1;
+                                    using (SqlCommand command = new SqlCommand("SELECT TOP 1 * FROM Chatter where ChatterName='" + commentSubmitter + "'", connection))
+                                    {
+                                        using (SqlDataReader reader = command.ExecuteReader())
+                                        {
+                                            while (reader.Read())
+                                            {
+                                                submitterId = reader.GetInt32(0);
+                                            }
+                                        }
+                                    }
+                                    using (SqlCommand command = new SqlCommand("SELECT TOP 1 * FROM Channel where ChannelName='" + splitData[2].Replace("#", "") + "'", connection))
+                                    {
+                                        using (SqlDataReader reader = command.ExecuteReader())
+                                        {
+                                            while (reader.Read())
+                                            {
+                                                streamerId = reader.GetInt32(0);
+                                            }
+                                        }
+                                    }
+                                    if (submitterId == -1)
+                                    {
+                                        using (SqlCommand command = new SqlCommand("INSERT INTO Chatter(ChatterName) VALUES('" + commentSubmitter + "')", connection))
+                                        {
+                                            command.ExecuteNonQuery();
+                                        }
+                                    }
+                                    if (streamerId == -1)
+                                    {
+                                        using (SqlCommand command = new SqlCommand("INSERT INTO Channel(ChannelName) VALUES('" + splitData[2].Replace("#", "") + "')", connection))
+                                        {
+                                            command.ExecuteNonQuery();
+                                        }
+                                    }
+
+                                    using (SqlCommand command = new SqlCommand("SELECT TOP 1 * FROM Chatter where ChatterName='" + commentSubmitter + "'", connection))
+                                    {
+                                        using (SqlDataReader reader = command.ExecuteReader())
+                                        {
+                                            while (reader.Read())
+                                            {
+                                                submitterId = reader.GetInt32(0);
+                                            }
+                                        }
+                                    }
+                                    using (SqlCommand command = new SqlCommand("SELECT TOP 1 * FROM Channel where ChannelName='" + splitData[2].Replace("#", "") + "'", connection))
+                                    {
+                                        using (SqlDataReader reader = command.ExecuteReader())
+                                        {
+                                            while (reader.Read())
+                                            {
+                                                streamerId = reader.GetInt32(0);
+                                            }
+                                        }
+                                    }
+
+                                    if (streamerId != -1 && submitterId != -1)
+                                    {
+                                        using (SqlCommand command = new SqlCommand("INSERT INTO Message(ChatterId, ChannelId, SubmissionTime, MessageContent) VALUES('" + submitterId + "', '" + streamerId + "', '" + submissionTime + "', '" + message + "')", connection))
+                                        {
+                                            command.ExecuteNonQuery();
+                                        }
+                                    }
+                                    else
+                                    {
+                                        Logging.WriteToConsole("Something's not right with the database");
+                                    }
+                                    processedMessages++;
+                                }
+                            }
+                        }
+                        catch (Exception exc)
+                        {
+                            Logging.WriteToConsole("Database Error: " + exc.Message);
+                        }
+                    }
+                }
+            }
+        }
+
+        public int getQueueLength()
+        {
+            return receivedMessages.Count;
+        }
+
+        public int getProcessedMessages()
+        {
+            return processedMessages;
+        }
+
+        public int getThreadNbr()
+        {
+            return threadNumber;
+        }
+
+        public List<string> getStreamerList()
+        {
+            return thisThreadStreamers;
         }
 
         /*
