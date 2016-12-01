@@ -34,29 +34,28 @@ namespace TwitchChat
                 RootObject streamWrapper = JsonConvert.DeserializeObject<RootObject>(jsonResponse);
                 int currentTotalStreams = streamWrapper._total / SCALE_DOWN_CONSTANT;
                 int totalThreadsRequired = (streamWrapper._total / SCALE_DOWN_CONSTANT / STREAMS_PER_THREAD);
-                int currentThreadCounter = 0;
-                for (int i = 0; i < totalThreadsRequired; i++)
+                Console.WriteLine("streamWrapper._total / SCALE_DOWN_CONSTANT / STREAMS_PER_THREAD = " + streamWrapper._total + " / " + SCALE_DOWN_CONSTANT + " / " + STREAMS_PER_THREAD + " = " + (streamWrapper._total / SCALE_DOWN_CONSTANT / STREAMS_PER_THREAD));
+                for (int i = 0; i < totalThreadsRequired; i++) //We will need a list of strings of channel names to join, and we want one for each thread
                 {
                     channelsToJoin.Add(new List<string>());
                 }
-                for (int i = 100; i < currentTotalStreams + 100; i += 100)
+                int currentThreadCounter = 1;
+                for (int i = 100; i < currentTotalStreams + 100; i += 100) //We will be parsing a new set of 100 each time from the json search
                 {
                     if (streamWrapper != null)
                     {
                         for (int j = 0; j < streamWrapper.streams.Count; j++)
                         {
-                            if (currentThreadCounter >= totalThreadsRequired - 1)
+                            if (currentThreadCounter == totalThreadsRequired)
                             {
                                 currentThreadCounter = 0;
-                                channelsToJoin[currentThreadCounter].Add(streamWrapper.streams[j].channel.name);
+                                channelsToJoin[currentThreadCounter++].Add(streamWrapper.streams[j].channel.name);
                             }
                             else
                             {
-                                channelsToJoin[currentThreadCounter].Add(streamWrapper.streams[j].channel.name);
-                                currentThreadCounter++;
+                                channelsToJoin[currentThreadCounter++].Add(streamWrapper.streams[j].channel.name);
                             }
                         }
-                        Logging.WriteToConsole("A new set of " + streamWrapper.streams.Count + " has been parsed.");
                     }
                     else
                     {
@@ -64,9 +63,15 @@ namespace TwitchChat
                     }
                     jsonResponse = generateResults("https://api.twitch.tv/kraken/streams?access_token=m36ctuloofijrvkx16rt2cjkbw6ndd&client_id=i3fyf84w4iies7v78jov1jp2zmwdbpa&limit=100&offset=" + i);
                     streamWrapper = JsonConvert.DeserializeObject<RootObject>(jsonResponse);
-                    fullListOfChannels = combinedLists(channelsToJoin, fullListOfChannels, (i - 100) / 100);
                 }
-                string combinedChannelsString = "All Channel Names: ";
+                foreach (List<string> listStr in channelsToJoin)
+                {
+                    foreach (string str in listStr)
+                    {
+                        fullListOfChannels.Add(str);
+                    }
+                }
+                string combinedChannelsString = "All Channel Names [" + fullListOfChannels.Count + " Total]: ";
                 foreach (string channel in fullListOfChannels)
                 {
                     combinedChannelsString += channel + ", ";

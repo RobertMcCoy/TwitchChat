@@ -18,6 +18,7 @@ namespace TwitchChat
         public void monitorThreads()
         {
             Logging.WriteToConsole("Beginning thread monitoring. Total threads to monitor: " + monitoredThreads.Count);
+            int intervalsCounter = 0;
             while (true)
             {
                 Thread.Sleep(5000);
@@ -35,8 +36,13 @@ namespace TwitchChat
                         thread.Start();
                     }
                 }
-                Thread statisticsThread = new Thread(() => reportOnStatistics());
-                statisticsThread.Start();
+                intervalsCounter++;
+                if (intervalsCounter == 5)
+                {
+                    Thread statisticsThread = new Thread(() => reportOnStatistics());
+                    statisticsThread.Start();
+                    intervalsCounter = 0;
+                }
             }
         }
 
@@ -44,7 +50,7 @@ namespace TwitchChat
         {
             foreach (IRCBot ircBot in Operations.ircBots)
             {
-                Logging.WriteToConsole("REPORT: \tTHREAD #" + ircBot.getThreadNbr() + " has processed " + ircBot.getProcessedMessages() + " messages. \tQueue Length: " + ircBot.getQueueLength());
+                Logging.WriteToConsole("REPORT: \tTHREAD #" + ircBot.getThreadNbr() + " has processed " + ircBot.getProcessedMessages() + " messages. | Queue Length: " + ircBot.getQueueLength());
                 if (ircBot.getProcessedMessages() == 0)
                 {
                     StringBuilder stringBuilder = new StringBuilder();
@@ -52,7 +58,7 @@ namespace TwitchChat
                     {
                         stringBuilder.Append(str);
                     }
-                    Logging.WriteToConsole("REPORT: \tTHREAD #" + ircBot.getThreadNbr() + " has reported 0 messages processed. Streamers in that thread: " + stringBuilder.ToString());
+                    //Logging.WriteToConsole("REPORT: \tTHREAD #" + ircBot.getThreadNbr() + " has reported 0 messages processed. Streamers in that thread: " + stringBuilder.ToString());
                 }
             }
         }
