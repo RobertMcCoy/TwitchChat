@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.IO;
 using System.Net.Sockets;
 using System.Data.SqlClient;
+using System.Threading;
 
 namespace TwitchChat
 {
@@ -75,6 +76,14 @@ namespace TwitchChat
             Logging.WriteToConsole("Message Handler #" + threadNumber + " has been started.");
             while (true)
             {
+                if (receivedMessages.Count > 200 && receivedMessages.Peek() != null)
+                {
+                    processedMessages += receivedMessages.Count;
+                    MessageLoadBalancer loadBalancer = new MessageLoadBalancer(receivedMessages);
+                    Thread clearThisQueue = new Thread(() => loadBalancer.ClearTheQueue());
+                    receivedMessages.Clear();
+                    clearThisQueue.Start();
+                }
                 if (receivedMessages.Count > 0 && receivedMessages.Peek() != null)
                 {
                     string data = receivedMessages.Dequeue();

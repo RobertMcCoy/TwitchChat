@@ -51,6 +51,7 @@
     <Compile Include="IRCBot.cs" />
     <Compile Include="JSON.cs" />
     <Compile Include="Logging.cs" />
+    <Compile Include="MessageLoadBalancer.cs" />
     <Compile Include="Operations.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

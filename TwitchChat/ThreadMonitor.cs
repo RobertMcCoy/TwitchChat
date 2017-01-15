@@ -8,7 +8,7 @@ namespace TwitchChat
 {
     class ThreadMonitor
     {
-        private List<Thread> monitoredThreads;
+        private readonly List<Thread> monitoredThreads;
 
         public ThreadMonitor(List<Thread> monitoredThreads)
         {
@@ -19,15 +19,14 @@ namespace TwitchChat
         {
             Logging.WriteToConsole("Beginning thread monitoring. Total threads to monitor: " + monitoredThreads.Count);
             int intervalsCounter = 0;
+            var activeThreads = new List<string>();
             while (true)
             {
                 Thread.Sleep(5000);
-                List<string> activeThreads = new List<string>();
                 foreach (Thread thread in monitoredThreads)
                 {
                     if (thread.IsAlive)
                     {
-                        activeThreads.Add(thread.Name);
                         continue;
                     }
                     else
@@ -39,7 +38,7 @@ namespace TwitchChat
                 intervalsCounter++;
                 if (intervalsCounter == 5)
                 {
-                    Thread statisticsThread = new Thread(() => reportOnStatistics());
+                    Thread statisticsThread = new Thread(reportOnStatistics);
                     statisticsThread.Start();
                     intervalsCounter = 0;
                 }
